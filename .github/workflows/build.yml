@@ -1,5 +1,4 @@
-name: Build & Push Docker images on Self Runner for ARM Architectures to the AWS ECR Repo
-# Note: The Docker image is tagged w/ suffix: arm64
+name: Build & Push Docker image to the AWS ECR Repo
 
 on:
   push:
@@ -35,12 +34,17 @@ jobs:
           id: get-timestamp
           run: echo "::set-output name=timestamp::$(date +'%Y-%m-%d-%H-%M')"
 
+        - name: Extract branch name
+          id: extract_branch
+          shell: bash
+          run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
         - name: Build, tag, and push the image to Amazon ECR
           id: build-image
           env:
             ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
             ECR_REPOSITORY: ${{ secrets.REPO_NAME }}
-            IMAGE_TAG: ${{ steps.get-commit-hash.outputs.commit-hash }}-${{ steps.get-timestamp.outputs.timestamp }}-arm64
+            IMAGE_TAG: ${{ steps.get-commit-hash.outputs.commit-hash }}-${{ steps.get-timestamp.outputs.timestamp }}-${{ steps.extract_branch.outputs.branch }}
           run: |
             echo "{\"build_tag\":\"$IMAGE_TAG\"}" > build.json
             docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
