@@ -1,0 +1,52 @@
+name: Build & Push Docker image to the AWS ECR Repo
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+    Build:
+      name: Build
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Build project with Maven
+          run: mvn -B package --file pom.xml            
+
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
+
+        - name: Login to Amazon ECR
+          id: login-ecr
+          uses: aws-actions/amazon-ecr-login@v2
+
+        - name: Get commit hash
+          id: get-commit-hash
+          run: echo "::set-output name=commit-hash::$(git rev-parse --short HEAD)"
+    
+        - name: Get timestamp
+          id: get-timestamp
+          run: echo "::set-output name=timestamp::$(date +'%Y-%m-%d-%H-%M')"
+
+        - name: Extract branch name
+          id: extract_branch
+          shell: bash
+          run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
+        - name: Build, tag, and push the image to Amazon ECR
+          id: build-image
+          env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+            ECR_REPOSITORY: ${{ secrets.REPO_NAME }}
+            IMAGE_TAG: ${{ steps.get-commit-hash.outputs.commit-hash }}-${{ steps.get-timestamp.outputs.timestamp }}-${{ steps.extract_branch.outputs.branch }}
+          run: |
+            echo "{\"build_tag\":\"$IMAGE_TAG\"}" > build.json
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
