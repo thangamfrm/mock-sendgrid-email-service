@@ -3,7 +3,7 @@ name: Build & Push Docker image to the AWS ECR Repo
 on:
   push:
     branches:
-      - feature-setup-actions
+      - main
 jobs:
     Build:
       name: Build
